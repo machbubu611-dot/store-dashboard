@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>營運指標儀表板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --morandi-red: #b56a6a;
+            --morandi-pink: #d9a5a5;
+            --morandi-bg: #fdf8f8;
+            --morandi-text: #4a3a3a;
+            --morandi-light: #e8d3d3;
+            --fail-bg: #fff1f1;
+            --fail-border: #fecaca;
+            --pass-border: #e2e8f0;
+        }
+
+        body {
+            background-color: var(--morandi-bg);
+            color: var(--morandi-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border: 1px solid var(--morandi-light);
+        }
+
+        .metric-failing {
+            background-color: var(--fail-bg) !important;
+            border: 1px solid var(--fail-border) !important;
+        }
+
+        .btn-primary {
+            background-color: var(--morandi-red);
+            color: white;
+            box-shadow: 0 4px 12px rgba(181, 106, 106, 0.3);
+        }
+
+        #fileInput { display: none; }
+
+        .progress-bar {
+            height: 10px;
+            border-radius: 5px;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--morandi-red);
+            transition: width 0.6s ease;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            backdrop-filter: blur(2px);
+        }
+        .modal.active { display: flex; }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 650px;
+            max-height: 85vh;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: modalSlide 0.3s ease-out;
+        }
+
+        @keyframes modalSlide {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .view-list-btn {
+            border: 1.5px solid #ddd;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            margin-top: 8px;
+            transition: all 0.2s;
+        }
+
+        .view-list-btn.failing {
+            border-color: #feb2b2;
+            color: #e53e3e;
+            background-color: #fff5f5;
+        }
+
+        .view-list-btn.success {
+            border-color: #cbd5e0;
+            color: #718096;
+            background-color: #f7fafc;
+        }
+
+        .all-pass-badge {
+            display: inline-flex;
+            align-items: center;
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #b56a6a;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 pb-12">
+
+    <!-- Header -->
+    <div class="max-w-6xl mx-auto mb-8 text-center">
+        <h1 class="text-3xl font-bold mb-4 tracking-tight" style="color: var(--morandi-red);">營運指標儀表板</h1>
+        <label for="fileInput" class="btn-primary inline-flex items-center px-8 py-3 rounded-full cursor-pointer font-bold text-lg transition-transform active:scale-95">
+            <span class="mr-2">📂</span> 匯入營運報表
+        </label>
+        <input type="file" id="fileInput" accept=".xlsx, .xls, .csv">
+        <p class="text-xs text-gray-400 mt-3 font-medium">支援 Excel / CSV 格式，已為您自動排除 SPA 美療師數據</p>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboardContent" class="max-w-6xl mx-auto hidden">
+        
+        <!-- Overall Metrics -->
+        <div class="mb-10">
+            <h2 class="text-xl font-bold mb-5 flex items-center">
+                <span class="w-1.5 h-6 bg-red-400 inline-block mr-3 rounded-full"></span>
+                全店總體落實指標
+            </h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="card p-5 text-center" id="totalCard1">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">同意書簽名</div>
+                    <div class="text-4xl font-black text-red-800" id="totalConsent">0%</div>
+                </div>
+                <div class="card p-5 text-center" id="totalCard2">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">施作項目簽名</div>
+                    <div class="text-4xl font-black text-red-800" id="totalProject">0%</div>
+                </div>
+                <div class="card p-5 text-center" id="totalCard3">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">客情紀錄</div>
+                    <div class="text-4xl font-black text-red-800" id="totalRecord">0%</div>
+                </div>
+                <div class="card p-5 text-center" id="totalCard4">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">下次預約率</div>
+                    <div class="text-4xl font-black text-red-800" id="totalBooking">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff List -->
+        <div>
+            <h2 class="text-xl font-bold mb-5 flex items-center">
+                <span class="w-1.5 h-6 bg-pink-300 inline-block mr-3 rounded-full"></span>
+                服務人員明細表
+            </h2>
+            <div id="staffGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Staff cards injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal" onclick="if(event.target === this) closeModal()">
+        <div class="modal-content shadow-2xl">
+            <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                    <h3 class="font-bold text-xl text-gray-800" id="modalTitle">未完成名單</h3>
+                    <p class="text-sm text-red-400 font-bold mt-0.5" id="modalSubtitle">以下為未落實之客戶紀錄</p>
+                </div>
+                <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-black text-3xl transition-colors">&times;</button>
+            </div>
+            <div class="p-0 overflow-y-auto flex-1 bg-white">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead class="bg-gray-100 text-gray-600 sticky top-0 border-b">
+                        <tr>
+                            <th class="px-6 py-4 font-bold">日期</th>
+                            <th class="px-6 py-4 font-bold">服務人員</th>
+                            <th class="px-6 py-4 font-bold">客戶姓名</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalTableBody" class="divide-y divide-gray-100">
+                        <!-- Rows injected here -->
+                    </tbody>
+                </table>
+                <div id="modalEmpty" class="hidden py-16 text-center text-gray-400">
+                    <div class="text-4xl mb-2">🎉</div>
+                    <p class="font-bold">恭喜！此項目所有客戶皆已落實</p>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t bg-gray-50 text-right">
+                <button onclick="closeModal()" class="px-8 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-100 active:bg-gray-200">關閉視窗</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="emptyState" class="max-w-xl mx-auto text-center py-32 card bg-white mt-10">
+        <div class="text-6xl mb-4 opacity-20">📊</div>
+        <p class="text-gray-400 font-bold text-lg">請匯入檔案以開始分析指標</p>
+    </div>
+
+    <script>
+        let rawData = [];
+        window.failRegistry = {};
+
+        const fileInput = document.getElementById('fileInput');
+        const titlePriority = ['店經理', '店副理', '諮詢主任', '諮詢師', '醫美師', '護理諮詢主任', '護理諮詢師', '護理師', '護理長'];
+        const branchKeywords = ['台北仁愛', '桃園中正', '新竹光明', '台中向上', '台中崇德', '高雄巨蛋'];
+
+        fileInput.addEventListener('change', handleFile);
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                processData();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function getSortScore(name) {
+            const isBranch = branchKeywords.some(k => name.includes(k));
+            let baseScore = isBranch ? 1000000 : 0;
+
+            let titleScore = 9999;
+            for (let i = 0; i < titlePriority.length; i++) {
+                if (name.includes(titlePriority[i])) {
+                    titleScore = i * 100;
+                    break;
+                }
+            }
+
+            let cancelScore = 0;
+            if (name.includes('諮詢師')) {
+                cancelScore = name.includes('(取消)') ? 10 : -50;
+            }
+
+            return baseScore + titleScore + cancelScore;
+        }
+
+        function processData() {
+            const filtered = rawData.filter(r => !(r['服務人員'] || '').includes('SPA美療師'));
+            const groups = {};
+            const global = { cV: 0, cB: 0, pV: 0, pB: 0, rT: 0, rB: 0, bT: 0, bB: 0 };
+
+            window.failRegistry = {};
+
+            filtered.forEach(r => {
+                const s = r['服務人員'] || '未知';
+                if (!groups[s]) {
+                    groups[s] = { name: s, cV: 0, cB: 0, pV: 0, pB: 0, rT: 0, rB: 0, bT: 0, bB: 0, fails: {c:[], p:[], r:[], b:[]} };
+                }
+                
+                const target = groups[s];
+                
+                if (r['同意書簽名'] === 'V') { target.cV++; global.cV++; }
+                else if (r['同意書簽名'] === '!') { target.cB++; global.cB++; target.fails.c.push(r); }
+
+                if (r['施作項目簽名'] === 'V') { target.pV++; global.pV++; }
+                else if (r['施作項目簽名'] === '!') { target.pB++; global.pB++; target.fails.p.push(r); }
+
+                const recordVal = r['客情紀錄表'] || r['客情紀錄'];
+                target.rT++; global.rT++;
+                if (recordVal === '!') { target.rB++; global.rB++; target.fails.r.push(r); }
+
+                target.bT++; global.bT++;
+                if (r['預約'] === '!') { target.bB++; global.bB++; target.fails.b.push(r); }
+            });
+
+            const results = Object.values(groups).map(g => ({
+                ...g,
+                cR: Math.round(g.cV / (g.cV + g.cB || 1) * 100) || 0,
+                pR: Math.round(g.pV / (g.pV + g.pB || 1) * 100) || 0,
+                rR: Math.round((g.rT - g.rB) / g.rT * 100) || 0,
+                bR: Math.round((g.bT - g.bB) / g.bT * 100) || 0,
+                sortScore: getSortScore(g.name)
+            })).sort((a, b) => a.sortScore - b.sortScore);
+
+            const gMetrics = {
+                c: Math.round(global.cV / (global.cV + global.cB || 1) * 100),
+                p: Math.round(global.pV / (global.pV + global.pB || 1) * 100),
+                r: Math.round((global.rT - global.rB) / global.rT * 100),
+                b: Math.round((global.bT - global.bB) / global.bT * 100)
+            };
+
+            render(results, gMetrics);
+        }
+
+        function render(results, g) {
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('dashboardContent').classList.remove('hidden');
+
+            const setG = (id, val, pass) => {
+                const el = document.getElementById(id);
+                el.innerText = val + '%';
+                el.parentElement.className = `card p-5 text-center ${val < pass ? 'metric-failing' : ''}`;
+            };
+            setG('totalConsent', g.c, 100);
+            setG('totalProject', g.p, 100);
+            setG('totalRecord', g.r, 100);
+            setG('totalBooking', g.b, 85);
+
+            const grid = document.getElementById('staffGrid');
+            grid.innerHTML = '';
+            
+            results.forEach(s => {
+                const isAllPass = s.cR >= 100 && s.pR >= 100 && s.rR >= 100 && s.bR >= 85;
+                const div = document.createElement('div');
+                div.className = 'card p-6';
+                
+                window.failRegistry[s.name + '_c'] = s.fails.c;
+                window.failRegistry[s.name + '_p'] = s.fails.p;
+                window.failRegistry[s.name + '_r'] = s.fails.r;
+                window.failRegistry[s.name + '_b'] = s.fails.b;
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-6 border-b pb-4">
+                        <div>
+                            <div class="font-black text-gray-800 text-xl flex items-center">
+                                ${s.name}
+                                ${isAllPass ? '<span class="all-pass-badge">🏆 達標</span>' : ''}
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1 font-bold">STAFF PERFORMANCE</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-5">
+                        ${renderStaffMetric('同意書簽名落實率', s.cR, 100, s.name, 'c')}
+                        ${renderStaffMetric('施作項目簽名落實率', s.pR, 100, s.name, 'p')}
+                        ${renderStaffMetric('客情紀錄落實率', s.rR, 100, s.name, 'r')}
+                        ${renderStaffMetric('下次預約率', s.bR, 85, s.name, 'b')}
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        function renderStaffMetric(label, val, pass, staffName, typeCode) {
+            const isFail = val < pass;
+            const escapedName = staffName.replace(/'/g, "\\'");
+            const escapedLabel = label.replace(/'/g, "\\'");
+            
+            return `
+                <div class="p-4 rounded-xl ${isFail ? 'metric-failing cursor-pointer hover:bg-red-100' : 'bg-gray-50 cursor-pointer hover:bg-gray-100'} transition-all" 
+                     onclick="window.triggerModal('${escapedName}', '${typeCode}', '${escapedLabel}')">
+                    <div class="flex justify-between text-base mb-2">
+                        <span class="text-gray-600 font-bold">${label}</span>
+                        <span class="font-black text-xl ${isFail ? 'text-red-600' : 'text-green-600'}">${val}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${val}%; background-color: ${isFail ? '#e53e3e' : '#48bb78'}"></div>
+                    </div>
+                    <div class="view-list-btn ${isFail ? 'failing' : 'success'}">
+                        ${isFail ? '🔍 查看未完成名單' : '✅ 查看落實紀錄'}
+                    </div>
+                </div>
+            `;
+        }
+
+        window.triggerModal = function(staffName, typeCode, label) {
+            const key = staffName + '_' + typeCode;
+            const list = window.failRegistry[key] || [];
+
+            document.getElementById('modalTitle').innerText = `${staffName}`;
+            document.getElementById('modalSubtitle').innerText = `${label} - 未落實名單 (${list.length} 筆)`;
+            
+            const tbody = document.getElementById('modalTableBody');
+            const modalEmpty = document.getElementById('modalEmpty');
+            
+            if (list.length === 0) {
+                tbody.innerHTML = '';
+                modalEmpty.classList.remove('hidden');
+            } else {
+                modalEmpty.classList.add('hidden');
+                tbody.innerHTML = list.map(r => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-medium">${r['日期'] || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-800 font-bold">${r['服務人員'] || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-red-600 font-black">${r['客戶姓名'] || '-'}</td>
+                    </tr>
+                `).join('');
+            }
+            
+            document.getElementById('modal').classList.add('active');
+        };
+
+        window.closeModal = function() {
+            document.getElementById('modal').classList.remove('active');
+        };
+    </script>
+</body>
+</html>
