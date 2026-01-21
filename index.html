@@ -16,6 +16,9 @@
             --fail-bg: #fff1f1;
             --fail-border: #fecaca;
             --pass-border: #e2e8f0;
+            --none-bg: #f3f4f6;
+            --none-border: #e5e7eb;
+            --none-text: #9ca3af;
         }
 
         body {
@@ -35,6 +38,12 @@
         .metric-failing {
             background-color: var(--fail-bg) !important;
             border: 1px solid var(--fail-border) !important;
+        }
+
+        .metric-none {
+            background-color: var(--none-bg) !important;
+            border: 1px solid var(--none-border) !important;
+            color: var(--none-text) !important;
         }
 
         .btn-primary {
@@ -111,6 +120,12 @@
             border-color: #cbd5e0;
             color: #718096;
             background-color: #f7fafc;
+        }
+
+        .view-list-btn.none {
+            border-color: #d1d5db;
+            color: #9ca3af;
+            background-color: #f9fafb;
         }
 
         .all-pass-badge {
@@ -216,8 +231,8 @@
                     </tbody>
                 </table>
                 <div id="modalEmpty" class="hidden py-16 text-center text-gray-400">
-                    <div class="text-4xl mb-2">🎉</div>
-                    <p class="font-bold">恭喜！此項目所有客戶皆已落實</p>
+                    <div class="text-4xl mb-2" id="modalEmptyIcon">🎉</div>
+                    <p class="font-bold" id="modalEmptyText">恭喜！此項目所有客戶皆已落實</p>
                 </div>
             </div>
             <div class="px-6 py-4 border-t bg-gray-50 text-right">
@@ -302,20 +317,27 @@
                 if (r['預約'] === '!') { target.bB++; global.bB++; target.fails.b.push(r); }
             });
 
-            const results = Object.values(groups).map(g => ({
-                ...g,
-                cR: Math.round(g.cV / (g.cV + g.cB || 1) * 100) || 0,
-                pR: Math.round(g.pV / (g.pV + g.pB || 1) * 100) || 0,
-                rR: Math.round((g.rT - g.rB) / g.rT * 100) || 0,
-                bR: Math.round((g.bT - g.bB) / g.bT * 100) || 0,
-                sortScore: getSortScore(g.name)
-            })).sort((a, b) => a.sortScore - b.sortScore);
+            const results = Object.values(groups).map(g => {
+                const cDenom = g.cV + g.cB;
+                const pDenom = g.pV + g.pB;
+                const rDenom = g.rT;
+                const bDenom = g.bT;
+
+                return {
+                    ...g,
+                    cR: cDenom === 0 ? null : Math.round(g.cV / cDenom * 100),
+                    pR: pDenom === 0 ? null : Math.round(g.pV / pDenom * 100),
+                    rR: rDenom === 0 ? null : Math.round((g.rT - g.rB) / g.rT * 100),
+                    bR: bDenom === 0 ? null : Math.round((g.bT - g.bB) / g.bT * 100),
+                    sortScore: getSortScore(g.name)
+                };
+            }).sort((a, b) => a.sortScore - b.sortScore);
 
             const gMetrics = {
-                c: Math.round(global.cV / (global.cV + global.cB || 1) * 100),
-                p: Math.round(global.pV / (global.pV + global.pB || 1) * 100),
-                r: Math.round((global.rT - global.rB) / global.rT * 100),
-                b: Math.round((global.bT - global.bB) / global.bT * 100)
+                c: (global.cV + global.cB) === 0 ? null : Math.round(global.cV / (global.cV + global.cB) * 100),
+                p: (global.pV + global.pB) === 0 ? null : Math.round(global.pV / (global.pV + global.pB) * 100),
+                r: global.rT === 0 ? null : Math.round((global.rT - global.rB) / global.rT * 100),
+                b: global.bT === 0 ? null : Math.round((global.bT - global.bB) / global.bT * 100)
             };
 
             render(results, gMetrics);
@@ -328,11 +350,17 @@
             const setG = (id, iconId, val, pass) => {
                 const el = document.getElementById(id);
                 const iconEl = document.getElementById(iconId);
-                const isPass = val >= pass;
+                const isNone = val === null;
+                const isPass = !isNone && val >= pass;
                 
-                el.innerText = val + '%';
+                el.innerText = isNone ? '0%' : val + '%';
                 iconEl.innerText = isPass ? '🏆' : '';
-                el.parentElement.className = `card p-5 text-center ${!isPass ? 'metric-failing' : ''}`;
+                
+                let className = "card p-5 text-center ";
+                if (isNone) className += "metric-none";
+                else if (val < pass) className += "metric-failing";
+                
+                el.parentElement.className = className;
             };
             
             setG('totalConsent', 'overallIcon1', g.c, 100);
@@ -344,7 +372,13 @@
             grid.innerHTML = '';
             
             results.forEach(s => {
-                const isAllPass = s.cR >= 100 && s.pR >= 100 && s.rR >= 100 && s.bR >= 85;
+                // 判定是否全達標：null 視為不需執行，不列入失敗判定
+                const isPass = (v, p) => v === null || v >= p;
+                const isAllPass = isPass(s.cR, 100) && isPass(s.pR, 100) && isPass(s.rR, 100) && isPass(s.bR, 85);
+                
+                // 如果所有項目都是 null，則不給達標勳章（因為完全沒做事）
+                const hasAnyData = s.cR !== null || s.pR !== null || s.rR !== null || s.bR !== null;
+
                 const div = document.createElement('div');
                 div.className = 'card p-6';
                 
@@ -358,7 +392,7 @@
                         <div>
                             <div class="font-black text-gray-800 text-xl flex items-center">
                                 ${s.name}
-                                ${isAllPass ? '<span class="all-pass-badge">🏆 達標</span>' : ''}
+                                ${isAllPass && hasAnyData ? '<span class="all-pass-badge">🏆 達標</span>' : ''}
                             </div>
                             <div class="text-xs text-gray-400 mt-1 font-bold">STAFF PERFORMANCE</div>
                         </div>
@@ -375,41 +409,77 @@
         }
 
         function renderStaffMetric(label, val, pass, staffName, typeCode) {
-            const isFail = val < pass;
+            const isNone = val === null;
+            const isFail = !isNone && val < pass;
+            const displayVal = isNone ? 0 : val;
+            
             const escapedName = staffName.replace(/'/g, "\\'");
             const escapedLabel = label.replace(/'/g, "\\'");
             
+            let cardClass = "p-4 rounded-xl transition-all cursor-pointer ";
+            let textClass = "font-black text-xl ";
+            let barColor = "var(--morandi-red)";
+            let btnClass = "view-list-btn ";
+
+            if (isNone) {
+                cardClass += "metric-none hover:bg-gray-200";
+                textClass += "text-gray-400";
+                barColor = "#d1d5db";
+                btnClass += "none";
+            } else if (isFail) {
+                cardClass += "metric-failing hover:bg-red-100";
+                textClass += "text-red-600";
+                barColor = "#e53e3e";
+                btnClass += "failing";
+            } else {
+                cardClass += "bg-gray-50 hover:bg-gray-100";
+                textClass += "text-green-600";
+                barColor = "#48bb78";
+                btnClass += "success";
+            }
+            
             return `
-                <div class="p-4 rounded-xl ${isFail ? 'metric-failing cursor-pointer hover:bg-red-100' : 'bg-gray-50 cursor-pointer hover:bg-gray-100'} transition-all" 
-                     onclick="window.triggerModal('${escapedName}', '${typeCode}', '${escapedLabel}')">
+                <div class="${cardClass}" onclick="window.triggerModal('${escapedName}', '${typeCode}', '${escapedLabel}', ${isNone})">
                     <div class="flex justify-between text-base mb-2">
-                        <span class="text-gray-600 font-bold">${label}</span>
-                        <span class="font-black text-xl ${isFail ? 'text-red-600' : 'text-green-600'}">${val}%</span>
+                        <span class="${isNone ? 'text-gray-400' : 'text-gray-600'} font-bold">${label}</span>
+                        <span class="${textClass}">${displayVal}%</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${val}%; background-color: ${isFail ? '#e53e3e' : '#48bb78'}"></div>
+                        <div class="progress-fill" style="width: ${displayVal}%; background-color: ${barColor}"></div>
                     </div>
-                    <div class="view-list-btn ${isFail ? 'failing' : 'success'}">
-                        ${isFail ? '🔍 查看未完成名單' : '✅ 查看落實紀錄'}
+                    <div class="${btnClass}">
+                        ${isNone ? '⚪ 無須執行項目' : (isFail ? '🔍 查看未完成名單' : '✅ 查看落實紀錄')}
                     </div>
                 </div>
             `;
         }
 
-        window.triggerModal = function(staffName, typeCode, label) {
+        window.triggerModal = function(staffName, typeCode, label, isNone) {
             const key = staffName + '_' + typeCode;
             const list = window.failRegistry[key] || [];
 
             document.getElementById('modalTitle').innerText = `${staffName}`;
-            document.getElementById('modalSubtitle').innerText = `${label} - 未落實名單 (${list.length} 筆)`;
             
             const tbody = document.getElementById('modalTableBody');
             const modalEmpty = document.getElementById('modalEmpty');
+            const modalSubtitle = document.getElementById('modalSubtitle');
+            const modalEmptyIcon = document.getElementById('modalEmptyIcon');
+            const modalEmptyText = document.getElementById('modalEmptyText');
             
-            if (list.length === 0) {
+            if (isNone) {
+                modalSubtitle.innerText = `${label} - 此項目不需執行`;
                 tbody.innerHTML = '';
                 modalEmpty.classList.remove('hidden');
+                modalEmptyIcon.innerText = '⚪';
+                modalEmptyText.innerText = '此人員在此期間內無須執行之項目';
+            } else if (list.length === 0) {
+                modalSubtitle.innerText = `${label} - 已完全落實`;
+                tbody.innerHTML = '';
+                modalEmpty.classList.remove('hidden');
+                modalEmptyIcon.innerText = '🎉';
+                modalEmptyText.innerText = '恭喜！此項目所有客戶皆已落實';
             } else {
+                modalSubtitle.innerText = `${label} - 未落實名單 (${list.length} 筆)`;
                 modalEmpty.classList.add('hidden');
                 tbody.innerHTML = list.map(r => `
                     <tr class="hover:bg-gray-50">
