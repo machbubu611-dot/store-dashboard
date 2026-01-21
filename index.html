@@ -124,6 +124,11 @@
             color: #b56a6a;
             margin-left: 8px;
         }
+        
+        .overall-badge {
+            font-size: 16px;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body class="p-4 md:p-6 pb-12">
@@ -149,19 +154,27 @@
             </h2>
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="card p-5 text-center" id="totalCard1">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">同意書簽名</div>
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                        同意書簽名 <span id="overallIcon1" class="overall-badge"></span>
+                    </div>
                     <div class="text-4xl font-black text-red-800" id="totalConsent">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard2">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">施作項目簽名</div>
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                        施作項目簽名 <span id="overallIcon2" class="overall-badge"></span>
+                    </div>
                     <div class="text-4xl font-black text-red-800" id="totalProject">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard3">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">客情紀錄</div>
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                        客情紀錄 <span id="overallIcon3" class="overall-badge"></span>
+                    </div>
                     <div class="text-4xl font-black text-red-800" id="totalRecord">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard4">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest">下次預約率</div>
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                        下次預約率 <span id="overallIcon4" class="overall-badge"></span>
+                    </div>
                     <div class="text-4xl font-black text-red-800" id="totalBooking">0%</div>
                 </div>
             </div>
@@ -312,15 +325,20 @@
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('dashboardContent').classList.remove('hidden');
 
-            const setG = (id, val, pass) => {
+            const setG = (id, iconId, val, pass) => {
                 const el = document.getElementById(id);
+                const iconEl = document.getElementById(iconId);
+                const isPass = val >= pass;
+                
                 el.innerText = val + '%';
-                el.parentElement.className = `card p-5 text-center ${val < pass ? 'metric-failing' : ''}`;
+                iconEl.innerText = isPass ? '🏆' : '';
+                el.parentElement.className = `card p-5 text-center ${!isPass ? 'metric-failing' : ''}`;
             };
-            setG('totalConsent', g.c, 100);
-            setG('totalProject', g.p, 100);
-            setG('totalRecord', g.r, 100);
-            setG('totalBooking', g.b, 85);
+            
+            setG('totalConsent', 'overallIcon1', g.c, 100);
+            setG('totalProject', 'overallIcon2', g.p, 100);
+            setG('totalRecord', 'overallIcon3', g.r, 100);
+            setG('totalBooking', 'overallIcon4', g.b, 85);
 
             const grid = document.getElementById('staffGrid');
             grid.innerHTML = '';
