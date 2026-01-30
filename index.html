@@ -169,25 +169,25 @@
             </h2>
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="card p-5 text-center" id="totalCard1">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         同意書簽名 <span id="overallIcon1" class="overall-badge"></span>
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalConsent">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard2">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         施作項目簽名 <span id="overallIcon2" class="overall-badge"></span>
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalProject">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard3">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         客情紀錄 <span id="overallIcon3" class="overall-badge"></span>
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalRecord">0%</div>
                 </div>
                 <div class="card p-5 text-center" id="totalCard4">
-                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         下次預約率 <span id="overallIcon4" class="overall-badge"></span>
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalBooking">0%</div>
@@ -325,19 +325,26 @@
 
                 return {
                     ...g,
-                    cR: cDenom === 0 ? null : Math.round(g.cV / cDenom * 100),
-                    pR: pDenom === 0 ? null : Math.round(g.pV / pDenom * 100),
-                    rR: rDenom === 0 ? null : Math.round((g.rT - g.rB) / g.rT * 100),
-                    bR: bDenom === 0 ? null : Math.round((g.bT - g.bB) / g.bT * 100),
+                    // 改用 Math.floor 確保只有 100% 才是真的 100%
+                    cR: cDenom === 0 ? null : Math.floor(g.cV / cDenom * 100),
+                    pR: pDenom === 0 ? null : Math.floor(g.pV / pDenom * 100),
+                    rR: rDenom === 0 ? null : Math.floor((g.rT - g.rB) / g.rT * 100),
+                    bR: bDenom === 0 ? null : Math.floor((g.bT - g.bB) / g.bT * 100),
                     sortScore: getSortScore(g.name)
                 };
             }).sort((a, b) => a.sortScore - b.sortScore);
 
             const gMetrics = {
-                c: (global.cV + global.cB) === 0 ? null : Math.round(global.cV / (global.cV + global.cB) * 100),
-                p: (global.pV + global.pB) === 0 ? null : Math.round(global.pV / (global.pV + global.pB) * 100),
-                r: global.rT === 0 ? null : Math.round((global.rT - global.rB) / global.rT * 100),
-                b: global.bT === 0 ? null : Math.round((global.bT - global.bB) / global.bT * 100)
+                c: (global.cV + global.cB) === 0 ? null : Math.floor(global.cV / (global.cV + global.cB) * 100),
+                p: (global.pV + global.pB) === 0 ? null : Math.floor(global.pV / (global.pV + global.pB) * 100),
+                r: global.rT === 0 ? null : Math.floor((global.rT - global.rB) / global.rT * 100),
+                b: global.bT === 0 ? null : Math.floor((global.bT - global.bB) / global.bT * 100),
+                // 存儲原始未完成數，用於精確達標判定
+                cB: global.cB,
+                pB: global.pB,
+                rB: global.rB,
+                bB: global.bB,
+                bT: global.bT
             };
 
             render(results, gMetrics);
@@ -347,36 +354,54 @@
             document.getElementById('emptyState').classList.add('hidden');
             document.getElementById('dashboardContent').classList.remove('hidden');
 
-            const setG = (id, iconId, val, pass) => {
+            const setG = (id, iconId, val, failCount, passRate) => {
                 const el = document.getElementById(id);
                 const iconEl = document.getElementById(iconId);
                 const isNone = val === null;
-                const isPass = !isNone && val >= pass;
+                
+                // 改進達標判定：必須未完成數為 0 且數值達到標準
+                // 對於落實率指標（同意書、施作、客情），必須 failCount === 0 才給勳章
+                let isPass = false;
+                if (!isNone) {
+                    if (passRate === 100) {
+                        isPass = (failCount === 0);
+                    } else {
+                        isPass = (val >= passRate);
+                    }
+                }
                 
                 el.innerText = isNone ? '0%' : val + '%';
                 iconEl.innerText = isPass ? '🏆' : '';
                 
                 let className = "card p-5 text-center ";
                 if (isNone) className += "metric-none";
-                else if (val < pass) className += "metric-failing";
+                else if (!isPass) className += "metric-failing";
                 
                 el.parentElement.className = className;
             };
             
-            setG('totalConsent', 'overallIcon1', g.c, 100);
-            setG('totalProject', 'overallIcon2', g.p, 100);
-            setG('totalRecord', 'overallIcon3', g.r, 100);
-            setG('totalBooking', 'overallIcon4', g.b, 85);
+            // 全店總體指標判定
+            setG('totalConsent', 'overallIcon1', g.c, g.cB, 100);
+            setG('totalProject', 'overallIcon2', g.p, g.pB, 100);
+            setG('totalRecord', 'overallIcon3', g.r, g.rB, 100);
+            setG('totalBooking', 'overallIcon4', g.b, g.bB, 85);
 
             const grid = document.getElementById('staffGrid');
             grid.innerHTML = '';
             
             results.forEach(s => {
-                // 判定是否全達標：null 視為不需執行，不列入失敗判定
-                const isPass = (v, p) => v === null || v >= p;
-                const isAllPass = isPass(s.cR, 100) && isPass(s.pR, 100) && isPass(s.rR, 100) && isPass(s.bR, 85);
+                // 精確判定是否全達標：檢查原始 fail 數組長度
+                const isPass = (failList, rate, passTarget) => {
+                    if (rate === null) return true; // 不需執行視為通過
+                    if (passTarget === 100) return failList.length === 0;
+                    return rate >= passTarget;
+                };
+
+                const isAllPass = isPass(s.fails.c, s.cR, 100) && 
+                                 isPass(s.fails.p, s.pR, 100) && 
+                                 isPass(s.fails.r, s.rR, 100) && 
+                                 isPass(s.fails.b, s.bR, 85);
                 
-                // 如果所有項目都是 null，則不給達標勳章（因為完全沒做事）
                 const hasAnyData = s.cR !== null || s.pR !== null || s.rR !== null || s.bR !== null;
 
                 const div = document.createElement('div');
@@ -398,26 +423,33 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-5">
-                        ${renderStaffMetric('同意書簽名落實率', s.cR, 100, s.name, 'c')}
-                        ${renderStaffMetric('施作項目簽名落實率', s.pR, 100, s.name, 'p')}
-                        ${renderStaffMetric('客情紀錄落實率', s.rR, 100, s.name, 'r')}
-                        ${renderStaffMetric('下次預約率', s.bR, 85, s.name, 'b')}
+                        ${renderStaffMetric('同意書簽名落實率', s.cR, s.fails.c.length, 100, s.name, 'c')}
+                        ${renderStaffMetric('施作項目簽名落實率', s.pR, s.fails.p.length, 100, s.name, 'p')}
+                        ${renderStaffMetric('客情紀錄落實率', s.rR, s.fails.r.length, 100, s.name, 'r')}
+                        ${renderStaffMetric('下次預約率', s.bR, s.fails.b.length, 85, s.name, 'b')}
                     </div>
                 `;
                 grid.appendChild(div);
             });
         }
 
-        function renderStaffMetric(label, val, pass, staffName, typeCode) {
+        function renderStaffMetric(label, val, failCount, passTarget, staffName, typeCode) {
             const isNone = val === null;
-            const isFail = !isNone && val < pass;
+            
+            // 精確判定及格：如果是 100% 指標，必須 failCount 為 0
+            let isPass = false;
+            if (!isNone) {
+                isPass = (passTarget === 100) ? (failCount === 0) : (val >= passTarget);
+            }
+            
+            const isFail = !isNone && !isPass;
             const displayVal = isNone ? 0 : val;
             
             const escapedName = staffName.replace(/'/g, "\\'");
             const escapedLabel = label.replace(/'/g, "\\'");
             
             let cardClass = "p-4 rounded-xl transition-all cursor-pointer ";
-            let textClass = "font-black text-xl ";
+            let textClass = "font-black text-2xl "; // 增加指標數值字體大小
             let barColor = "var(--morandi-red)";
             let btnClass = "view-list-btn ";
 
@@ -440,14 +472,14 @@
             
             return `
                 <div class="${cardClass}" onclick="window.triggerModal('${escapedName}', '${typeCode}', '${escapedLabel}', ${isNone})">
-                    <div class="flex justify-between text-base mb-2">
-                        <span class="${isNone ? 'text-gray-400' : 'text-gray-600'} font-bold">${label}</span>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="${isNone ? 'text-gray-400' : 'text-gray-700'} font-bold text-lg">${label}</span>
                         <span class="${textClass}">${displayVal}%</span>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${displayVal}%; background-color: ${barColor}"></div>
                     </div>
-                    <div class="${btnClass}">
+                    <div class="${btnClass} border-2 px-3 py-1 mt-3"> <!-- 增加框線粗度與明顯度 -->
                         ${isNone ? '⚪ 無須執行項目' : (isFail ? '🔍 查看未完成名單' : '✅ 查看落實紀錄')}
                     </div>
                 </div>
