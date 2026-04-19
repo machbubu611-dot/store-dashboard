@@ -148,8 +148,7 @@
 </head>
 <body class="p-4 md:p-6 pb-12">
 
-    <!-- Header -->
-    <div class="max-w-6xl mx-auto mb-8 text-center">
+    <div class="max-w-7xl mx-auto mb-8 text-center">
         <h1 class="text-3xl font-bold mb-4 tracking-tight" style="color: var(--morandi-red);">營運指標儀表板</h1>
         <label for="fileInput" class="btn-primary inline-flex items-center px-8 py-3 rounded-full cursor-pointer font-bold text-lg transition-transform active:scale-95">
             <span class="mr-2">📂</span> 匯入營運報表
@@ -158,16 +157,14 @@
         <p class="text-xs text-gray-400 mt-3 font-medium">支援 Excel / CSV 格式，已為您自動排除 SPA 美療師數據</p>
     </div>
 
-    <!-- Dashboard -->
-    <div id="dashboardContent" class="max-w-6xl mx-auto hidden">
+    <div id="dashboardContent" class="max-w-7xl mx-auto hidden">
         
-        <!-- Overall Metrics -->
         <div class="mb-10">
             <h2 class="text-xl font-bold mb-5 flex items-center">
                 <span class="w-1.5 h-6 bg-red-400 inline-block mr-3 rounded-full"></span>
                 全店總體落實指標
             </h2>
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div class="card p-5 text-center" id="totalCard1">
                     <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         同意書簽名 <span id="overallIcon1" class="overall-badge"></span>
@@ -180,13 +177,19 @@
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalProject">0%</div>
                 </div>
+                <div class="card p-5 text-center" id="totalCard5">
+                    <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
+                        療程紀錄 <span id="overallIcon5" class="overall-badge"></span>
+                    </div>
+                    <div class="text-4xl font-black text-red-800" id="totalTreatment">0%</div>
+                </div>
                 <div class="card p-5 text-center" id="totalCard3">
                     <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         客情紀錄 <span id="overallIcon3" class="overall-badge"></span>
                     </div>
                     <div class="text-4xl font-black text-red-800" id="totalRecord">0%</div>
                 </div>
-                <div class="card p-5 text-center" id="totalCard4">
+                <div class="card p-5 text-center md:col-span-1 lg:col-span-1" id="totalCard4">
                     <div class="text-sm text-gray-400 font-bold mb-2 uppercase tracking-widest flex items-center justify-center text-center">
                         下次預約率 <span id="overallIcon4" class="overall-badge"></span>
                     </div>
@@ -195,19 +198,16 @@
             </div>
         </div>
 
-        <!-- Staff List -->
         <div>
             <h2 class="text-xl font-bold mb-5 flex items-center">
                 <span class="w-1.5 h-6 bg-pink-300 inline-block mr-3 rounded-full"></span>
                 服務人員明細表
             </h2>
             <div id="staffGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Staff cards injected here -->
-            </div>
+                </div>
         </div>
     </div>
 
-    <!-- Modal -->
     <div id="modal" class="modal" onclick="if(event.target === this) closeModal()">
         <div class="modal-content shadow-2xl">
             <div class="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
@@ -227,8 +227,7 @@
                         </tr>
                     </thead>
                     <tbody id="modalTableBody" class="divide-y divide-gray-100">
-                        <!-- Rows injected here -->
-                    </tbody>
+                        </tbody>
                 </table>
                 <div id="modalEmpty" class="hidden py-16 text-center text-gray-400">
                     <div class="text-4xl mb-2" id="modalEmptyIcon">🎉</div>
@@ -291,28 +290,37 @@
         function processData() {
             const filtered = rawData.filter(r => !(r['服務人員'] || '').includes('SPA美療師'));
             const groups = {};
-            const global = { cV: 0, cB: 0, pV: 0, pB: 0, rT: 0, rB: 0, bT: 0, bB: 0 };
+            const global = { cV: 0, cB: 0, pV: 0, pB: 0, tT: 0, tB: 0, rT: 0, rB: 0, bT: 0, bB: 0 };
 
             window.failRegistry = {};
 
             filtered.forEach(r => {
                 const s = r['服務人員'] || '未知';
                 if (!groups[s]) {
-                    groups[s] = { name: s, cV: 0, cB: 0, pV: 0, pB: 0, rT: 0, rB: 0, bT: 0, bB: 0, fails: {c:[], p:[], r:[], b:[]} };
+                    groups[s] = { name: s, cV: 0, cB: 0, pV: 0, pB: 0, tT: 0, tB: 0, rT: 0, rB: 0, bT: 0, bB: 0, fails: {c:[], p:[], t:[], r:[], b:[]} };
                 }
                 
                 const target = groups[s];
                 
+                // 同意書
                 if (r['同意書簽名'] === 'V') { target.cV++; global.cV++; }
                 else if (r['同意書簽名'] === '!') { target.cB++; global.cB++; target.fails.c.push(r); }
 
+                // 施作項目
                 if (r['施作項目簽名'] === 'V') { target.pV++; global.pV++; }
                 else if (r['施作項目簽名'] === '!') { target.pB++; global.pB++; target.fails.p.push(r); }
 
+                // 療程紀錄
+                const treatVal = r['療程記錄'] || r['療程紀錄']; // 涵蓋兩種寫法
+                target.tT++; global.tT++;
+                if (treatVal === '!') { target.tB++; global.tB++; target.fails.t.push(r); }
+
+                // 客情紀錄
                 const recordVal = r['客情紀錄表'] || r['客情紀錄'];
                 target.rT++; global.rT++;
                 if (recordVal === '!') { target.rB++; global.rB++; target.fails.r.push(r); }
 
+                // 預約
                 target.bT++; global.bT++;
                 if (r['預約'] === '!') { target.bB++; global.bB++; target.fails.b.push(r); }
             });
@@ -320,14 +328,15 @@
             const results = Object.values(groups).map(g => {
                 const cDenom = g.cV + g.cB;
                 const pDenom = g.pV + g.pB;
+                const tDenom = g.tT;
                 const rDenom = g.rT;
                 const bDenom = g.bT;
 
                 return {
                     ...g,
-                    // 改用 Math.floor 確保只有 100% 才是真的 100%
                     cR: cDenom === 0 ? null : Math.floor(g.cV / cDenom * 100),
                     pR: pDenom === 0 ? null : Math.floor(g.pV / pDenom * 100),
+                    tR: tDenom === 0 ? null : Math.floor((g.tT - g.tB) / g.tT * 100),
                     rR: rDenom === 0 ? null : Math.floor((g.rT - g.rB) / g.rT * 100),
                     bR: bDenom === 0 ? null : Math.floor((g.bT - g.bB) / g.bT * 100),
                     sortScore: getSortScore(g.name)
@@ -337,14 +346,14 @@
             const gMetrics = {
                 c: (global.cV + global.cB) === 0 ? null : Math.floor(global.cV / (global.cV + global.cB) * 100),
                 p: (global.pV + global.pB) === 0 ? null : Math.floor(global.pV / (global.pV + global.pB) * 100),
+                t: global.tT === 0 ? null : Math.floor((global.tT - global.tB) / global.tT * 100),
                 r: global.rT === 0 ? null : Math.floor((global.rT - global.rB) / global.rT * 100),
                 b: global.bT === 0 ? null : Math.floor((global.bT - global.bB) / global.bT * 100),
-                // 存儲原始未完成數，用於精確達標判定
                 cB: global.cB,
                 pB: global.pB,
+                tB: global.tB,
                 rB: global.rB,
-                bB: global.bB,
-                bT: global.bT
+                bB: global.bB
             };
 
             render(results, gMetrics);
@@ -359,8 +368,6 @@
                 const iconEl = document.getElementById(iconId);
                 const isNone = val === null;
                 
-                // 改進達標判定：必須未完成數為 0 且數值達到標準
-                // 對於落實率指標（同意書、施作、客情），必須 failCount === 0 才給勳章
                 let isPass = false;
                 if (!isNone) {
                     if (passRate === 100) {
@@ -380,35 +387,38 @@
                 el.parentElement.className = className;
             };
             
-            // 全店總體指標判定
+            // 全店總體指標判定 (加入療程紀錄 80%、預約提升至 90%)
             setG('totalConsent', 'overallIcon1', g.c, g.cB, 100);
             setG('totalProject', 'overallIcon2', g.p, g.pB, 100);
+            setG('totalTreatment', 'overallIcon5', g.t, g.tB, 80);
             setG('totalRecord', 'overallIcon3', g.r, g.rB, 100);
-            setG('totalBooking', 'overallIcon4', g.b, g.bB, 85);
+            setG('totalBooking', 'overallIcon4', g.b, g.bB, 90);
 
             const grid = document.getElementById('staffGrid');
             grid.innerHTML = '';
             
             results.forEach(s => {
-                // 精確判定是否全達標：檢查原始 fail 數組長度
                 const isPass = (failList, rate, passTarget) => {
-                    if (rate === null) return true; // 不需執行視為通過
+                    if (rate === null) return true; 
                     if (passTarget === 100) return failList.length === 0;
                     return rate >= passTarget;
                 };
 
+                // 達標判定加入療程紀錄(80)與更新預約率(90)
                 const isAllPass = isPass(s.fails.c, s.cR, 100) && 
                                  isPass(s.fails.p, s.pR, 100) && 
+                                 isPass(s.fails.t, s.tR, 80) &&
                                  isPass(s.fails.r, s.rR, 100) && 
-                                 isPass(s.fails.b, s.bR, 85);
+                                 isPass(s.fails.b, s.bR, 90);
                 
-                const hasAnyData = s.cR !== null || s.pR !== null || s.rR !== null || s.bR !== null;
+                const hasAnyData = s.cR !== null || s.pR !== null || s.tR !== null || s.rR !== null || s.bR !== null;
 
                 const div = document.createElement('div');
                 div.className = 'card p-6';
                 
                 window.failRegistry[s.name + '_c'] = s.fails.c;
                 window.failRegistry[s.name + '_p'] = s.fails.p;
+                window.failRegistry[s.name + '_t'] = s.fails.t;
                 window.failRegistry[s.name + '_r'] = s.fails.r;
                 window.failRegistry[s.name + '_b'] = s.fails.b;
 
@@ -425,8 +435,9 @@
                     <div class="grid grid-cols-1 gap-5">
                         ${renderStaffMetric('同意書簽名落實率', s.cR, s.fails.c.length, 100, s.name, 'c')}
                         ${renderStaffMetric('施作項目簽名落實率', s.pR, s.fails.p.length, 100, s.name, 'p')}
+                        ${renderStaffMetric('療程紀錄落實率', s.tR, s.fails.t.length, 80, s.name, 't')}
                         ${renderStaffMetric('客情紀錄落實率', s.rR, s.fails.r.length, 100, s.name, 'r')}
-                        ${renderStaffMetric('下次預約率', s.bR, s.fails.b.length, 85, s.name, 'b')}
+                        ${renderStaffMetric('下次預約率', s.bR, s.fails.b.length, 90, s.name, 'b')}
                     </div>
                 `;
                 grid.appendChild(div);
@@ -436,7 +447,6 @@
         function renderStaffMetric(label, val, failCount, passTarget, staffName, typeCode) {
             const isNone = val === null;
             
-            // 精確判定及格：如果是 100% 指標，必須 failCount 為 0
             let isPass = false;
             if (!isNone) {
                 isPass = (passTarget === 100) ? (failCount === 0) : (val >= passTarget);
@@ -449,7 +459,7 @@
             const escapedLabel = label.replace(/'/g, "\\'");
             
             let cardClass = "p-4 rounded-xl transition-all cursor-pointer ";
-            let textClass = "font-black text-2xl "; // 增加指標數值字體大小
+            let textClass = "font-black text-2xl "; 
             let barColor = "var(--morandi-red)";
             let btnClass = "view-list-btn ";
 
@@ -479,7 +489,7 @@
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${displayVal}%; background-color: ${barColor}"></div>
                     </div>
-                    <div class="${btnClass} border-2 px-3 py-1 mt-3"> <!-- 增加框線粗度與明顯度 -->
+                    <div class="${btnClass} border-2 px-3 py-1 mt-3"> 
                         ${isNone ? '⚪ 無須執行項目' : (isFail ? '🔍 查看未完成名單' : '✅ 查看落實紀錄')}
                     </div>
                 </div>
